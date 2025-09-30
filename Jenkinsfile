@@ -10,7 +10,5 @@ pipeline {
  }
  stages {
  stage('Checkout') { steps { checkout scm } }
- stage('Build & Push') { steps { ... build y push a ECR ... } }
- stage('Deploy') { steps { ... actualizar Task Definition y Service ECS ... } }
  }
 }
