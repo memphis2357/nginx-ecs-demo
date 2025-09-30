@@ -37,25 +37,24 @@ pipeline {
             }
         }
         
-        stage('Deploy') {
-            steps {
-                script {
-                    // OBLIGATORIO: Envolvemos la lógica de AWS CLI en withCredentials para autenticar los comandos.
-                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
-                        
-                        // 1. Obtener la Task Definition más reciente
-                        sh "aws ecs describe-task-definition --task-definition ${params.TASK_FAMILY} --region ${params.AWS_REGION} > task-definition.json"
+        // ... dentro de stage('Deploy')
+stage('Deploy') {
+    steps {
+        script {
+            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
+                
+                // 1. Obtener la Task Definition más reciente
+                sh "aws ecs describe-task-definition --task-definition ${params.TASK_FAMILY} --region ${params.AWS_REGION} > task-definition.json"
 
-                        // 2. Crear una nueva definición de tarea actualizando la imagen URI
-                        sh """
-                        NEW_TASK_DEFINITION=\$(jq '.taskDefinition | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | .containerDefinitions[0].image = "${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO}:${env.BUILD_NUMBER}" | .' task-definition.json)
-                        aws ecs register-task-definition --region ${params.AWS_REGION} --cli-input-json "\${NEW_TASK_DEFINITION}"
-                        """
+                // 2. Crear una nueva definición de tarea actualizando la imagen URI
+                // CORRECCIÓN: Se agrega del(.compatibilities, .registeredAt, .registeredBy) para limpiar metadatos no deseados.
+                sh """
+                NEW_TASK_DEFINITION=\$(jq '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) | .containerDefinitions[0].image = "${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO}:${env.BUILD_NUMBER}" | .' task-definition.json)
+                aws ecs register-task-definition --region ${params.AWS_REGION} --cli-input-json "\${NEW_TASK_DEFINITION}"
+                """
 
-                        // 3. Actualizar el servicio ECS
-                        sh "aws ecs update-service --cluster ${params.ECS_CLUSTER} --service ${params.ECS_SERVICE} --force-new-deployment --region ${params.AWS_REGION}"
-                    }
-                }
+                // 3. Actualizar el servicio ECS
+                sh "aws ecs update-service --cluster ${params.ECS_CLUSTER} --service ${params.ECS_SERVICE} --force-new-deployment --region ${params.AWS_REGION}"
             }
         }
     }
