@@ -21,18 +21,18 @@ pipeline {
                     // Exponer las claves de AWS de la credencial 'aws-lab'
                     withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-lab', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY']]) {
                         
-                        // 1. Login a ECR (Usa las variables de entorno de la credencial)
-                        sh 'aws ecr get-login-password --region ${params.AWS_REGION} | docker login --username AWS --password-stdin ${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com'
+                        // 1. Login a ECR (CORREGIDO: usa comillas dobles y params.)
+                        sh "aws ecr get-login-password --region ${params.AWS_REGION} | docker login --username AWS --password-stdin ${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com"
                     }
 
-                    // 2. Construir la imagen
-                    sh 'docker build -t ${params.ECR_REPO}:${env.BUILD_NUMBER} .'
+                    // 2. Construir la imagen (CORREGIDO: usa params.)
+                    sh "docker build -t ${params.ECR_REPO}:${env.BUILD_NUMBER} ."
                     
-                    // 3. Etiquetar la imagen
-                    sh 'docker tag ${params.ECR_REPO}:${env.BUILD_NUMBER} ${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO}:${env.BUILD_NUMBER}'
+                    // 3. Etiquetar la imagen (CORREGIDO: usa params.)
+                    sh "docker tag ${params.ECR_REPO}:${env.BUILD_NUMBER} ${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO}:${env.BUILD_NUMBER}"
 
-                    // 4. Subir la imagen a ECR
-                    sh 'docker push ${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO}:${env.BUILD_NUMBER}'
+                    // 4. Subir la imagen (CORREGIDO: usa params.)
+                    sh "docker push ${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO}:${env.BUILD_NUMBER}"
                 }
             }
         }
@@ -40,16 +40,16 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    // 1. Obtener la Task Definition más reciente (Requiere 'jq' y AWS CLI)
+                    // 1. Obtener la Task Definition más reciente (CORREGIDO: usa params.)
                     sh "aws ecs describe-task-definition --task-definition ${params.TASK_FAMILY} --region ${params.AWS_REGION} > task-definition.json"
 
-                    // 2. Crear una nueva definición de tarea actualizando la imagen URI
+                    // 2. Crear una nueva definición de tarea (CORREGIDO: usa params. y ${env.BUILD_NUMBER})
                     sh """
                     NEW_TASK_DEFINITION=\$(jq '.taskDefinition | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | .containerDefinitions[0].image = "${params.ACCOUNT_ID}.dkr.ecr.${params.AWS_REGION}.amazonaws.com/${params.ECR_REPO}:${env.BUILD_NUMBER}" | .' task-definition.json)
                     aws ecs register-task-definition --region ${params.AWS_REGION} --cli-input-json "\${NEW_TASK_DEFINITION}"
                     """
 
-                    // 3. Actualizar el servicio ECS para forzar el nuevo despliegue
+                    // 3. Actualizar el servicio ECS (CORREGIDO: usa params.)
                     sh "aws ecs update-service --cluster ${params.ECS_CLUSTER} --service ${params.ECS_SERVICE} --force-new-deployment --region ${params.AWS_REGION}"
                 }
             }
